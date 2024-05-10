@@ -1006,8 +1006,10 @@ void Menu_initMenu(Menu_t* menu, int i)
 
 			MenuItem_Set(&menuSystem->items[menuSystem->numItems++], "Back", 0, 0);
 			MenuItem_Set2(&menuSystem->items[menuSystem->numItems++], "FullScreen:", sdlVideo.fullScreen ? "on" : "off", 0, 0);
+#ifndef __AMIGA__
 			MenuItem_Set2(&menuSystem->items[menuSystem->numItems++], "VSync:", sdlVideo.vSync ? "on" : "off", 0, 0);
 			MenuItem_Set2(&menuSystem->items[menuSystem->numItems++], "IntScaling:", sdlVideo.integerScaling ? "on" : "off", 0, 0);
+#endif
 			textDivider = MenuSystem_buildDivider(menuSystem, "Resolution");
 			MenuItem_Set(&menuSystem->items[menuSystem->numItems++], textDivider, 3, 0);
 			SDL_snprintf(text, sizeof(text), "(%dx%d)", sdlVideoModes[sdlVideo.resolutionIndex].width, sdlVideoModes[sdlVideo.resolutionIndex].height);
@@ -1081,11 +1083,19 @@ void Menu_initMenu(Menu_t* menu, int i)
 		case MENU_INGAME_BINDINGS: {
 			if (menuSystem->type == 1) {
 				strncpy(menu->doomRpg->hud->logMessage, "Bindings", sizeof(menu->doomRpg->hud->logMessage));
+#ifdef __AMIGA__
+				menuSystem->oldMenu = MENU_INGAME_OPTIONS;
+#else
 				menuSystem->oldMenu = MENU_INGAME_INPUT;
+#endif
 				menuSystem->type = 1;
 			}
 			else {
+#ifdef __AMIGA__
+				menuSystem->oldMenu = MENU_MAIN_OPTIONS;
+#else
 				menuSystem->oldMenu = MENU_INPUT;
+#endif
 				menuSystem->type = 7;
 			}
 
@@ -1324,10 +1334,18 @@ int Menu_select(Menu_t* menu, int menuId, int itemId)
 				}
 				else if (itemId == 2) { // New Input Option
 					if (menuSystem->items[itemId].action == true) {
+#ifdef __AMIGA__
+						return MENU_INGAME_BINDINGS;
+#else
 						return MENU_INGAME_INPUT;
+#endif
 					}
 					else {
+#ifdef __AMIGA__
+						return MENU_BINDINGS;
+#else
 						return MENU_INPUT;
+#endif
 					}
 				}
 				else if (itemId == 3) { // New Input Option

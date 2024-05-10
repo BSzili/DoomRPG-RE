@@ -279,7 +279,9 @@ void MenuSystem_paint(MenuSystem_t* menuSystem)
 			}
 		}
 		else {
+#ifndef __AMIGA__
 			DoomRPG_fillRect(doomRpg, 0, 0, doomCanvas->displayRect.w, doomCanvas->displayRect.h);
+#endif
 
 			if (MenuSystem_checkMenu(menuSystem)) {
 				doomCanvas->viewAngle = (doomCanvas->time / menuSystem->field_0xc58) & 0xff;
@@ -289,6 +291,11 @@ void MenuSystem_paint(MenuSystem_t* menuSystem)
 				// Port new line
 				DoomCanvas_drawRGB(doomCanvas);
 			}
+#ifdef __AMIGA__
+			else {
+				DoomRPG_fillRect(doomRpg, 0, 0, doomCanvas->displayRect.w, doomCanvas->displayRect.h);
+			}
+#endif
 
 			if (doomCanvas->benchmarkString) {
 				int AvgMs1 = (doomCanvas->renderAvgMs * 100) / doomCanvas->st_count;

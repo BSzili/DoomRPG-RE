@@ -12,7 +12,11 @@
 #include "Render.h"
 #include "SDL_Video.h"
 
+#ifdef __AMIGA__
+#define FIXED_VERSION 0
+#else
 #define FIXED_VERSION 1
+#endif
 
 Render_t* Render_init(Render_t* render, DoomRPG_t* doomRpg)
 {
@@ -1262,7 +1266,9 @@ void Render_render(Render_t* render, int viewx, int viewy, int viewz, unsigned i
 
 	render->currentFrameTime = DoomRPG_GetTimeMS();
 	if (render->doomRpg->doomCanvas->renderFloorCeilingTextures) {
+#ifndef __AMIGA__
 		Render_renderFloorAndCeilingBG(render);
+#endif
 	}
 	else {
 		Render_renderFloorAndCeilingSolidBG(render);
@@ -1434,6 +1440,102 @@ void Render_spanPlane(Render_t* render, int x, int y, short** planeTextures, int
 	}
 }
 
+#ifdef __AMIGA__
+static short ytop[800];
+static short ybot[800];
+static short lastx[600];
+static short **hlineTexture;
+
+static void hline(Render_t* render, int x0, int x1, int y)
+{
+	if (x0 > x1) {
+		return;
+	}
+
+	int top;
+	int right;
+	int left;
+
+	top = y;
+	if (render->screenTop > top || render->screenBottom < top) {
+		return;
+	}
+
+	left = x0;
+	if (render->screenLeft > left) {
+		left = render->screenLeft;
+	}
+
+	right = x1;
+	if (render->screenRight < right) {
+		right = render->screenRight;
+	}
+
+	int cnt = right-left+1;
+	if (cnt <= 0) {
+		return;
+	}
+	Render_drawplane(render, left, top, hlineTexture, cnt);
+}
+
+// convert vertical spans to horizontal
+// courtesy of Ken Silverman
+static void Render_drawCeiling(Render_t* render)
+{
+	short y0, y1;
+	short x0, x1, x;
+	short bwall;
+
+	x0 = 0; x1 = render->screenWidth-1;
+	y0 = 0; y1 = 0;
+	for (x=x0; x<=x1; x++)
+	{
+		bwall = ybot[x];
+		if (bwall > 0)
+		{
+			while (y0 < -1) { y0++; hline(render, lastx[y0], x-1, y0); }
+			while (y0 > -1) { lastx[y0] = x; y0--; }
+			while (y1 > bwall) { y1--; hline(render, lastx[y1], x-1, y1); }
+			while (y1 < bwall) { lastx[y1] = x; y1++; }
+		}
+		else
+		{
+			while (y0 < y1-1) { y0++; hline(render, lastx[y0], x-1, y0); }
+			if (x == x1) break;
+			y0 = 0; y1 = 0;
+		}
+	}
+	while (y0 < y1-1) { y0++; hline(render, lastx[y0], x1, y0); }
+}
+
+void Render_drawFloor(Render_t* render)
+{
+	short y0, y1;
+	short x0, x1, x;
+	short twall, bwall;
+
+	x0 = 0; x1 = render->screenWidth-1;
+	y0 = ytop[x0]; y1 = y0;
+	bwall = render->screenHeight;
+	for (x=x0; x<=x1; x++)
+	{
+		twall = ytop[x]-1; //bwall = render->screenHeight;
+		if (twall >= y1)
+		{
+			while (y0 < y1-1) { y0++; hline(render, lastx[y0], x-1, y0); }
+			y0 = twall;
+		}
+		else
+		{
+			while (y0 < twall) { y0++; hline(render, lastx[y0], x-1, y0); }
+			while (y0 > twall) { lastx[y0] = x; y0--; }
+		}
+		while (y1 < bwall) { lastx[y1] = x; y1++; }
+	}
+	while (y0 < y1-1) { y0++; hline(render, lastx[y0], x1, y0); }
+}
+#endif
+
 void Render_renderBSP(Render_t* render)
 {
 	Node_t* viewNode;
@@ -1459,6 +1561,15 @@ void Render_renderBSP(Render_t* render)
 			Render_drawNodeLines(render, viewNode);
 		}
 	}
+
+#ifdef __AMIGA__
+	if (render->doomRpg->doomCanvas->renderFloorCeilingTextures) {
+		hlineTexture = render->planeTextures + 1024;
+		Render_drawCeiling(render);
+		hlineTexture = render->planeTextures;
+		Render_drawFloor(render);
+	}
+#endif
 
 	if (!render->skipSprites) {
 		for (viewSprite = render->viewSprites; viewSprite != NULL; viewSprite = viewSprite->viewNext) {
@@ -2053,9 +2164,17 @@ void Render_drawWallSpans(Render_t* render, Line_t* line)
 	//printf("i9 %d\n", i9);
 	Render_getSpanMode(render, render->mediaTexelOffsets[line->texture * 2 + 1], render->spanMode);
 
+#ifdef __AMIGA__
+	if (i3 == 0) {
+		i12 = (0x40000000u / i8) << 2;
+	}
+#endif
 	//printf("-.-.-.-.-.-.-.-.-.-.-.-.-.\n");
 	while (i5 < i6)
 	{
+#ifdef __AMIGA__
+	if (i3 != 0)
+#endif
 		i12 = (0x40000000 / i8) << 2;
 
 #if FIXED_VERSION == 1
@@ -2097,6 +2216,11 @@ void Render_drawWallSpans(Render_t* render, Line_t* line)
 			if (i16 + i15 > render->screenBottom) {
 				i15 = render->screenBottom - i16;
 			}
+
+#ifdef __AMIGA__
+			ybot[i5] = i16;
+			ytop[i5] = i16 + i15;
+#endif
 
 			if (render->spanFunction) {
 				render->spanFunction(render, i5, i16, i17, i14, i15);
@@ -2375,8 +2499,16 @@ void Render_drawSpriteSpan(Render_t* render, Line_t* line)
 
 	i12 = i9 + 4;
 	i13 = (render->shapeData[i9] & 65535) | (render->shapeData[i9 + 1] << 16);
+#ifdef __AMIGA__
+	if (i3 == 0) {
+		i14 = (0x40000000u / i8) << 2;
+	}
+#endif
 	while (i5 < i6) {
 
+#ifdef __AMIGA__
+	if (i3 != 0)
+#endif
 		i14 = (0x40000000u / i8) << 2;
 
 #if FIXED_VERSION == 1
@@ -2524,6 +2656,15 @@ void Render_SpanMode0(Render_t* render, int param_2, int param_3, int param_4, i
 	mediaTexels = render->mediaTexels;
 	pixels = render->pixels + pitch * param_3 + param_2;
 
+#ifdef __AMIGA__
+	short count = param_6;
+	if (count <= 0) return;
+	do {
+		*pixels = spanPalettes[mediaTexels[param_4 >> 13] >> ((param_4 >> 10) & 4) & 0xf];
+		pixels += pitch;
+		param_4 += param_5;
+	} while (--count);
+#else
 	for (; param_6 >= 8; param_6 -= 8) {
 
 		iVar4 = param_4 + param_5;
@@ -2564,6 +2705,7 @@ void Render_SpanMode0(Render_t* render, int param_2, int param_3, int param_4, i
 		pixels += pitch;
 		param_4 += param_5;
 	}
+#endif
 }
 
 

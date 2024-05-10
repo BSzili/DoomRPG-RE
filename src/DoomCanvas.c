@@ -2571,7 +2571,9 @@ void DoomCanvas_playingState(DoomCanvas_t* doomCanvas)
 		  // <- I added the bracket here as I need the graphics to always update on every frame, 
 		  //    without player movement updates intervening.
 
+#ifndef __AMIGA__
 			DoomCanvas_drawRGB(doomCanvas);
+#endif
 
 			boolean renderParticle = true;
 			if (doomCanvas->particleSystem->particleCount > 0) {
@@ -2792,15 +2794,21 @@ void DoomCanvas_runInputEvents(DoomCanvas_t* doomCanvas)
 }
 
 
+#ifdef __AMIGA__
+static int lastUpdateTime = -1;
+static int animFramesSet = 0;
+#endif
 void DoomCanvas_run(DoomCanvas_t* doomCanvas)
 {
 	int sound;
 
+#ifndef __AMIGA__
 	// New Code Lines
 	//{
 	DoomRPG_setColor(doomCanvas->doomRpg, 0x000000);
 	DoomRPG_clearGraphics(doomCanvas->doomRpg);
 	//}
+#endif
 
 	//DoomCanvas_updateLoadingBar(doomCanvas);
 
@@ -2820,6 +2828,36 @@ void DoomCanvas_run(DoomCanvas_t* doomCanvas)
 	}
 
 	doomCanvas->loopStart = doomCanvas->time = DoomRPG_GetUpTimeMS();
+#ifdef __AMIGA__
+	if (!animFramesSet) {
+		if (lastUpdateTime > 0) {
+			// frame-rate adjusted animation speeds
+			int diff = doomCanvas->time - lastUpdateTime;
+			if (diff >= 64) {
+				doomCanvas->animFrames = 1;
+				doomCanvas->animPos = 64;
+				doomCanvas->animAngle = 64;
+			} else if (diff >= 32) {
+				doomCanvas->animFrames = 2;
+				doomCanvas->animPos = 32;
+				doomCanvas->animAngle = 32;
+			} else {
+				doomCanvas->animFrames = 4;
+				doomCanvas->animPos = 16;
+				doomCanvas->animAngle = 16;
+			}
+			//printf("diff %d animpos %d animframes %d\n", diff, doomCanvas->animPos, doomCanvas->animFrames);
+			doomCanvas->slowBlit = (diff > 64);
+			animFramesSet = 1; // only do this once
+		} else {
+			// this is a safe default until the actual speed is measured
+			doomCanvas->animFrames = 1;
+			doomCanvas->animPos = 64;
+			doomCanvas->animAngle = 64;
+		}
+		lastUpdateTime = doomCanvas->time;
+	}
+#endif
 	DoomCanvas_runInputEvents(doomCanvas);
 	DoomCanvas_updatePlayerAnimDoors(doomCanvas);
 	Game_gsprite_update(doomCanvas->game);

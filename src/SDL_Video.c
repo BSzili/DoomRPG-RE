@@ -54,6 +54,16 @@ void SDL_InitVideo(void)
         DoomRPG_Error("Could not initialize SDL: %s", SDL_GetError());
     }
 
+#ifdef __AMIGA__
+	extern void *P96Base;
+	if (!P96Base) {
+		// avoid modes that need SuperHires with HAM
+		if (sdlVideo.resolutionIndex > 2) {
+			sdlVideo.resolutionIndex = 2;
+		}
+	}
+#endif
+
     flags = SDL_WINDOW_OPENGL| SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
     video_w = sdlVideoModes[sdlVideo.resolutionIndex].width;
     video_h = sdlVideoModes[sdlVideo.resolutionIndex].height;
@@ -401,6 +411,18 @@ int SDL_GameControllerGetButtonID(void)
 }
 
 char buttonNames[][16] = {
+#ifdef __AMIGA__
+	"Red",
+	"Blue",
+	"Green",
+	"Yellow",
+	"Back", // invalid
+	"Play",
+	"Left Stick", // invalid
+	"Right Stick", // invalid
+	"Reverse",
+	"Forward",
+#else
 	"Gamepad A",
 	"Gamepad B",
 	"Gamepad X",
@@ -411,6 +433,7 @@ char buttonNames[][16] = {
 	"Right Stick",
 	"Left Bumper",
 	"Right Bumper",
+#endif
 	"D-Pad Up",
 	"D-Pad Down",
 	"D-Pad Left",

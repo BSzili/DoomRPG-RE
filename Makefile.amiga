@@ -1,0 +1,92 @@
+CC := m68k-amigaos-gcc
+#CXX := m68k-amigaos-g++
+AS := vasmm68k_mot -Fhunk -m68020 -quiet
+STRIP := m68k-amigaos-strip
+RM := rm -f
+
+CPU ?= 020
+ifeq ($(CPU),060)
+ARCH = -m68060
+else
+ARCH = -m68020
+endif
+
+DEBUG ?= 0
+#DEFINES := -D__NO_INLINE__=1
+INCLUDES := -I. -Iamiga -Iamiga/lib -Isrc
+CFLAGS := $(ARCH) $(DEFINES) $(INCLUDES) -noixemul -fno-common
+ifneq ($(DEBUG), 1)
+CFLAGS += -O2 -DNDEBUG -fomit-frame-pointer
+CFLAGS += -fbbb=-
+else
+CFLAGS += -g -D_DEBUG
+endif
+#CFLAGS += -save-temps
+#CFLAGS += -fstack-usage
+CFLAGS += -Wstack-usage=1024
+CFLAGS += -Wall -Wno-unused-variable -Wno-switch -Wno-sign-compare -Wno-pointer-sign -Wno-pointer-to-int-cast
+#CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
+
+LDFLAGS := -noixemul $(ARCH)
+LDFLAGS += -Lamiga/lib -lz
+#LDFLAGS +=  -ldebug
+#LDFLAGS += -lm
+# -fno-exceptions -fno-rtti
+
+AMIGA_SRC = \
+	amiga/c2p_2rgb565_4rgb555h8_040.s \
+	amiga/c2p_2rgb565_3rgb555h8_040.s \
+	amiga/audiodev.c \
+	amiga/notsdl.c \
+	amiga/notsdl-bmp.c \
+	amiga/notsdl-error.c \
+	amiga/notsdl-rwops.c \
+	amiga/notsdl-timer.c \
+	amiga/notsdlmixer.c
+#	amiga/notzip.c \
+
+BARTOZIP_SRC = \
+	amiga/bartozip.c
+
+MAIN_SRC = \
+	src/Combat.c \
+	src/CombatEntity.c \
+	src/DoomCanvas.c \
+	src/DoomRPG.c \
+	src/Entity.c \
+	src/EntityDef.c \
+	src/EntityMonster.c \
+	src/Game.c \
+	src/Hud.c \
+	src/Main.c \
+	src/Menu.c \
+	src/MenuItem.c \
+	src/MenuSystem.c \
+	src/ParticleSystem.c \
+	src/Player.c \
+	src/Render.c \
+	src/SDL_Video.c \
+	src/Sound.c \
+	src/Weapon.c \
+	src/Z_Zone.c \
+	src/Z_Zip.c \
+
+SRCS := $(MAIN_SRC) $(AMIGA_SRC)
+OBJS := $(filter %.o, $(SRCS:.c=.o) $(SRCS:.s=.o))
+
+
+all: DoomRPG.$(CPU) BarToZip
+
+DoomRPG.$(CPU): $(OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS) -Wl,-Map=$@.map
+ifneq ($(DEBUG), 1)
+	$(STRIP) $@
+endif
+
+BarToZip: $(filter %.o, $(BARTOZIP_SRC:.c=.o))
+	$(CC) -o $@ $^ $(LDFLAGS) -Wl,-Map=$@.map
+
+.PHONY: clean
+
+clean:
+	$(RM) $(OBJS) DoomRPG.$(CPU) DoomRPG.$(CPU).map BarToZip BarToZip.map
