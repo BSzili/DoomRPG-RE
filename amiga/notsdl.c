@@ -21,6 +21,21 @@ struct Library *P96Base;
 #define ARRAY_LEN(array) (sizeof((array)) / sizeof((array)[0]))
 #define ABS(_x) ((_x) < 0 ? -(_x) : (_x))
 #define MAKE_RGB565(red, green, blue) (((red) >> 3) << 11) | (((green) >> 2) << 5) | ((blue) >> 3)
+#define UNPACK_RGB565(color, red, green, blue) \
+	do { \
+		(red) = ((color) >> 11) & 0x1f; \
+		(red) = ((red) << 3) | ((red) >> 2); \
+		(green) = ((color) >> 5) & 0x3f; \
+		(green) = ((green) << 2) | ((green) >> 4); \
+		(blue) = ((color) & 0x1f); \
+		(blue) = ((blue) << 3) | ((blue) >> 2); \
+	} while(0)
+#define UNPACK_RGB565_FAST(color, red, green, blue) \
+	do { \
+		(red) = ((color) >> 8) & 0xf8; \
+		(green) = ((color) >> 3) & 0xfc; \
+		(blue) = ((color) << 3) & 0xf8; \
+	} while(0)
 //#define PRESENT_BENCHMARK
 #define TEXTURE_DIRECT
 #define RENDERER_DIRECT
@@ -43,6 +58,8 @@ struct SDL_Texture
 #ifdef TEXTURE_DIRECT
 	SDL_bool allocated;
 #endif
+	SDL_bool colormod;
+	Uint8 r, g, b;
 };
 
 struct SDL_Renderer
@@ -58,6 +75,7 @@ struct SDL_Renderer
 #ifdef RENDERER_DIRECT
 	SDL_bool allocated;
 #endif
+	SDL_BlendMode blendMode;
 };
 
 
@@ -291,7 +309,50 @@ int SDL_RenderCopy(SDL_Renderer *renderer, SDL_Texture *texture, const SDL_Rect 
 	Uint16 *dstpix = renderer->pixels;
 	int dstwidth = renderer->w;
 
-	if (!texture->masked) {
+	if (texture->colormod) {
+		WORD width = xSize;
+		WORD height = ySize;
+		int dstskip = dstwidth - width;
+		int srcskip = srcwidth - width;
+		Uint16 *dst = dstpix + (yDest * dstwidth) + xDest;
+		Uint16 *src = srcpix + (ySrc * srcwidth) + xSrc;
+		if (!texture->masked) {
+			while (height--) {
+				WORD n = width;
+				do {
+					//*dst++ = *src++;
+					Uint16 sr, sg, sb, dr, dg, db;
+					dr = texture->r;
+					dg = texture->g;
+					db = texture->b;
+					UNPACK_RGB565(*src, sr, sg, sb);
+					*dst++ = MAKE_RGB565((sr * dr) >> 8, (sg * dg) >> 8, (sb * db) >> 8);
+				} while (--n);
+				dst += dstskip;
+				src += srcskip;
+			}
+		} else {
+			Uint16 colorkey = texture->colorkey;
+			while (height--) {
+				WORD n = width;
+				do {
+					Uint16 col = *src++;
+					if (col != colorkey) {
+						//*dst = col;
+						Uint16 sr, sg, sb, dr, dg, db;
+						dr = texture->r;
+						dg = texture->g;
+						db = texture->b;
+						UNPACK_RGB565(col, sr, sg, sb);
+						*dst = MAKE_RGB565((sr * dr) >> 8, (sg * dg) >> 8, (sb * db) >> 8);
+					}
+					dst++;
+				} while (--n);
+				dst += dstskip;
+				src += srcskip;
+			}
+		}
+	} else if (!texture->masked) {
 		if (xSrc == 0 && xDest == 0 && xSize == dstwidth) {	// blit the whole width of the screen
 			int length = xSize * ySize;
 			Uint16 *dst = dstpix + yDest * dstwidth;
@@ -421,8 +482,17 @@ int SDL_RenderFillRect(SDL_Renderer *renderer, const SDL_Rect *rect)
 	if (rect->x == 0 && rect->w == dstwidth) {
 		int length = xSize * ySize;
 		Uint16 *pixel = dstpix + (rect->y * dstwidth);
-		while (length--) {
-			*pixel++ = color;
+		if (renderer->blendMode == SDL_BLENDMODE_NONE) {
+			while (length--) {
+				*pixel++ = color;
+			}
+		} else {
+			while (length--) {
+				Uint8 sr, sg, sb, dr, dg, db;
+				UNPACK_RGB565_FAST(*pixel, dr, dg, db);
+				UNPACK_RGB565_FAST(color, sr, sg, sb);
+				*pixel++ = MAKE_RGB565((sr + dr) >> 2, (sg + dg) >> 2, (sb + db) >> 2);
+			}
 		}
 	} else {
 		int width = xSize;
@@ -575,8 +645,9 @@ int SDL_RenderDrawPoints(SDL_Renderer *renderer, const SDL_Point *points, int co
 
 int SDL_SetRenderDrawBlendMode(SDL_Renderer *renderer, SDL_BlendMode blendMode)
 {
-	// not implemented, used by the bind menu
-	return -1;
+	// only implemented for fillrect, used by the bind menu
+	renderer->blendMode = blendMode;
+	return 0;
 }
 
 
@@ -683,8 +754,19 @@ int SDL_UpdateTexture(SDL_Texture *texture, const SDL_Rect *rect, const void *pi
 
 int SDL_SetTextureColorMod(SDL_Texture *texture, Uint8 r, Uint8 g, Uint8 b)
 {
-	// not implemented, only used to color the menu fonts
-	return -1;
+	// only used to color the menu fonts
+	if (r == 0xFF && g == 0xFF && b == 0xFF) {
+		texture->colormod = SDL_FALSE;
+	} else {
+		texture->colormod = SDL_TRUE;
+		//if (texture->r != r || texture->g != g || texture->b != b) {
+			texture->r = r;
+			texture->g = g;
+			texture->b = b;
+		//}
+	}
+	
+	return 0;
 }
 
 SDL_Texture *SDL_CreateTextureFromSurface(SDL_Renderer *renderer, SDL_Surface *surface)
