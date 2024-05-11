@@ -1006,10 +1006,8 @@ void Menu_initMenu(Menu_t* menu, int i)
 
 			MenuItem_Set(&menuSystem->items[menuSystem->numItems++], "Back", 0, 0);
 			MenuItem_Set2(&menuSystem->items[menuSystem->numItems++], "FullScreen:", sdlVideo.fullScreen ? "on" : "off", 0, 0);
-#ifndef __AMIGA__
 			MenuItem_Set2(&menuSystem->items[menuSystem->numItems++], "VSync:", sdlVideo.vSync ? "on" : "off", 0, 0);
 			MenuItem_Set2(&menuSystem->items[menuSystem->numItems++], "IntScaling:", sdlVideo.integerScaling ? "on" : "off", 0, 0);
-#endif
 			textDivider = MenuSystem_buildDivider(menuSystem, "Resolution");
 			MenuItem_Set(&menuSystem->items[menuSystem->numItems++], textDivider, 3, 0);
 			SDL_snprintf(text, sizeof(text), "(%dx%d)", sdlVideoModes[sdlVideo.resolutionIndex].width, sdlVideoModes[sdlVideo.resolutionIndex].height);
